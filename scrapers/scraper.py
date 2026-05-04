@@ -1,11 +1,10 @@
 """
-Job scraper: LinkedIn, Indeed, TimesJobs, Freshersworld
-All HTTP calls have explicit timeouts — no hanging.
+Job scraper: LinkedIn, RemoteOK, Jobicy
+All have open APIs that work on CI servers.
 """
 import json
 import time
 import hashlib
-import feedparser
 import requests
 from datetime import datetime
 from pathlib import Path
@@ -39,69 +38,59 @@ def save_seen(seen: set):
 def job_id(title: str, company: str) -> str:
     return hashlib.md5(f"{title.lower().strip()}{company.lower().strip()}".encode()).hexdigest()
 
-def fetch_rss(url: str, timeout: int = 10) -> list:
-    """Fetch RSS with timeout — returns feedparser entries or empty list."""
+def scrape_remoteok(keywords: list[str]) -> list[dict]:
+    """RemoteOK public API — no auth, no blocking."""
+    jobs = []
     try:
-        resp = requests.get(url, headers=HEADERS, timeout=timeout)
-        resp.raise_for_status()
-        feed = feedparser.parse(resp.text)
-        return feed.entries
-    except Exception as e:
-        print(f"  RSS fetch failed ({url[:60]}...): {e}", flush=True)
-        return []
-
-def scrape_indeed(keywords: list[str], location: str) -> list[dict]:
-    jobs = []
-    for kw in keywords:
-        url = (
-            f"https://in.indeed.com/rss?q={requests.utils.quote(kw)}"
-            f"&l={requests.utils.quote(location)}&sort=date"
+        resp = requests.get(
+            "https://remoteok.com/api",
+            headers={**HEADERS, "Accept": "application/json"},
+            timeout=15
         )
-        for entry in fetch_rss(url)[:15]:
-            jobs.append({
-                "title": entry.get("title", ""),
-                "company": entry.get("source", {}).get("value", "Unknown"),
-                "link": entry.get("link", ""),
-                "source": "Indeed",
-                "keyword": kw,
-                "date": entry.get("published", datetime.now().isoformat()),
-            })
-        time.sleep(1)
-    print(f"  Indeed: {len(jobs)} jobs", flush=True)
+        data = resp.json()
+        for item in data[1:]:  # first item is metadata
+            title = item.get("position", "")
+            company = item.get("company", "Unknown")
+            tags = " ".join(item.get("tags", []))
+            text = f"{title} {tags}".lower()
+            if any(kw.split()[0].lower() in text for kw in keywords):
+                jobs.append({
+                    "title": title,
+                    "company": company,
+                    "link": item.get("url", ""),
+                    "source": "RemoteOK",
+                    "keyword": "remote",
+                    "date": item.get("date", datetime.now().isoformat()),
+                })
+    except Exception as e:
+        print(f"  RemoteOK error: {e}", flush=True)
+    print(f"  RemoteOK: {len(jobs)} jobs", flush=True)
     return jobs
 
-def scrape_timesjobs(keywords: list[str]) -> list[dict]:
+def scrape_jobicy(keywords: list[str]) -> list[dict]:
+    """Jobicy public API — free, no auth needed."""
     jobs = []
-    for kw in keywords:
-        url = f"https://www.timesjobs.com/jobfeed/rss-jobs.html?keyword={requests.utils.quote(kw)}&locationId=0"
-        for entry in fetch_rss(url)[:10]:
-            jobs.append({
-                "title": entry.get("title", ""),
-                "company": entry.get("author", "Unknown"),
-                "link": entry.get("link", ""),
-                "source": "TimesJobs",
-                "keyword": kw,
-                "date": entry.get("published", datetime.now().isoformat()),
-            })
-        time.sleep(1)
-    print(f"  TimesJobs: {len(jobs)} jobs", flush=True)
-    return jobs
-
-def scrape_freshersworld(keywords: list[str]) -> list[dict]:
-    jobs = []
-    for kw in keywords:
-        url = f"https://www.freshersworld.com/jobs/rss?keyword={requests.utils.quote(kw)}&location=India"
-        for entry in fetch_rss(url)[:10]:
-            jobs.append({
-                "title": entry.get("title", ""),
-                "company": entry.get("author", "Unknown"),
-                "link": entry.get("link", ""),
-                "source": "Freshersworld",
-                "keyword": kw,
-                "date": entry.get("published", datetime.now().isoformat()),
-            })
-        time.sleep(1)
-    print(f"  Freshersworld: {len(jobs)} jobs", flush=True)
+    for kw in keywords[:3]:  # limit to avoid rate limit
+        try:
+            resp = requests.get(
+                f"https://jobicy.com/api/v2/remote-jobs?count=20&keyword={requests.utils.quote(kw)}",
+                headers=HEADERS,
+                timeout=15
+            )
+            data = resp.json()
+            for item in data.get("jobs", []):
+                jobs.append({
+                    "title": item.get("jobTitle", ""),
+                    "company": item.get("companyName", "Unknown"),
+                    "link": item.get("url", ""),
+                    "source": "Jobicy",
+                    "keyword": kw,
+                    "date": item.get("pubDate", datetime.now().isoformat()),
+                })
+        except Exception as e:
+            print(f"  Jobicy error ({kw}): {e}", flush=True)
+        time.sleep(2)
+    print(f"  Jobicy: {len(jobs)} jobs", flush=True)
     return jobs
 
 def scrape_linkedin(keywords: list[str], location: str) -> list[dict]:
@@ -144,14 +133,11 @@ def run():
 
     all_jobs = []
 
-    print("🔍 Scraping Indeed...", flush=True)
-    all_jobs += scrape_indeed(keywords, location)
+    print("🔍 Scraping RemoteOK...", flush=True)
+    all_jobs += scrape_remoteok(keywords)
 
-    print("🔍 Scraping TimesJobs...", flush=True)
-    all_jobs += scrape_timesjobs(keywords)
-
-    print("🔍 Scraping Freshersworld...", flush=True)
-    all_jobs += scrape_freshersworld(keywords)
+    print("🔍 Scraping Jobicy...", flush=True)
+    all_jobs += scrape_jobicy(keywords)
 
     print("🔍 Scraping LinkedIn...", flush=True)
     all_jobs += scrape_linkedin(keywords, location)
