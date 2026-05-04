@@ -10,3 +10,4 @@ filtered_jobs.json
 __pycache__/
 *.pyc
 .venv/
+test_gemini.py
