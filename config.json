@@ -1,12 +1,26 @@
 {
   "keywords": [
-    "software engineer fresher",
-    "junior developer",
-    "python developer entry level",
+    "software engineer fresher 2026",
+    "full stack developer fresher",
     "backend developer fresher",
-    "full stack developer fresher"
+    "node.js developer fresher",
+    "react developer fresher",
+    "python developer fresher",
+    "software engineer intern",
+    "full stack intern",
+    "backend intern node.js",
+    "SaaS developer fresher",
+    "junior software engineer",
+    "software developer 2026 batch"
   ],
-  "location": "India",
-  "min_score": 6,
-  "max_alerts_per_day": 20
+  "locations": [
+    "Hyderabad",
+    "Bangalore",
+    "Chennai",
+    "Remote"
+  ],
+  "location": "Hyderabad",
+  "min_score": 7,
+  "min_ctc_lpa": 4,
+  "max_alerts_per_day": 25
 }

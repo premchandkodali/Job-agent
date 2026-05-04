@@ -1,22 +1,42 @@
-I am a fresher software engineer looking for entry-level or junior roles.
+I am Premchand Kodali, a 2026 fresher B.Tech IT graduate from VVIT Guntur with CGPA 8.1.
+Looking for Software Engineer or Intern roles starting 2026.
 
-Skills:
-- Python (intermediate): Django, Flask, REST APIs
-- JavaScript / React (basic)
-- SQL, PostgreSQL
-- Git, GitHub
-- Basic understanding of cloud (AWS S3, EC2)
-- Data structures and algorithms
+SKILLS:
+- JavaScript, Node.js, Express.js (strong)
+- React.js (intermediate)
+- Python, Flask, FastAPI (intermediate)
+- Java (intermediate)
+- MongoDB, MySQL, PostgreSQL, ChromaDB
+- AWS (EC2, S3), Firebase, Docker
+- GitHub Actions, CI/CD Pipelines, Jenkins
+- Generative AI, LLM Integration (Gemini/Gemma2), RAG, Semantic Search
+- TensorFlow, Data Structures, OOP, RESTful API Design
 
-Education:
-- B.Tech in Computer Science, 2024
+PROJECTS:
+- Codex: AI-powered GitHub analysis tool (React, Node.js, MongoDB, Gemini LLM, Docker)
+- AI-PATH-GEN: SaaS learning platform (React, Python, Flask, FastAPI, MySQL, TensorFlow)
+- VANET Blockchain Routing: Blockchain + ns-3 simulation
 
-I am open to:
-- Backend / full-stack roles
-- Startup or product companies
-- Remote or Hyderabad / Bangalore / Chennai locations
+ACHIEVEMENTS:
+- Adobe Hackathon 2025: Rank 98 out of 4000+ teams
+- CodeClash 2.0 National Hackathon: Top 9%, competed at Google Gurugram
 
-I am NOT interested in:
-- Sales or non-tech roles
-- Core hardware / embedded systems
-- Very senior roles (5+ years required)
+PREFERRED ROLES:
+- Full-stack developer, backend developer, software engineer
+- SaaS, cloud-native, AI/GenAI roles
+- Startups or MNCs both welcome
+- Full-time OR internship
+
+PREFERRED LOCATIONS:
+- Hyderabad, Bangalore, Chennai, Remote
+
+MINIMUM CTC:
+- Full-time: 4 LPA minimum
+- Internship: paid preferred (stipend okay)
+
+NOT INTERESTED IN:
+- Non-tech roles (sales, marketing, HR, legal, medical)
+- Senior roles requiring 3+ years experience
+- Roles requiring only frontend (HTML/CSS only)
+- Unpaid internships
+- Embedded systems, hardware, core electronics
