@@ -5,6 +5,7 @@ Model: Llama 3.1 8B
 import json
 import os
 from pathlib import Path
+from typing import Optional
 from groq import Groq
 
 
@@ -15,11 +16,21 @@ def load_jd() -> str:
     return ""
 
 
-def score_job(client: Groq, job: dict, jd: str) -> tuple[int, str]:
+def score_job(client: Groq, job: dict, jd: str, feedback: Optional[dict] = None) -> tuple[int, str]:
+    feedback = feedback or {}
+    relevant_titles = feedback.get("relevant", [])
+    irrelevant_titles = feedback.get("irrelevant", [])
+
     prompt = f"""You are a job relevance scorer for a 2026 fresher software engineer in India.
 
 Candidate profile:
 {jd}
+
+Past positive signals:
+{chr(10).join(f'- {title}' for title in relevant_titles) if relevant_titles else 'None'}
+
+Past negative signals:
+{chr(10).join(f'- {title}' for title in irrelevant_titles) if irrelevant_titles else 'None'}
 
 Job to evaluate:
 Title: {job['title']}
@@ -53,7 +64,7 @@ Reply ONLY as JSON: {{"score": <int 0-10>, "reason": "<one sentence max 15 words
         return 5, "Could not score"
 
 
-def run():
+def run(feedback: Optional[dict] = None):
     config = json.load(open("config.json"))
     threshold = config.get("min_score", 7)
     api_key = os.environ.get("GROQ_API_KEY", "")
@@ -84,7 +95,7 @@ def run():
 
     print(f"Scoring {len(jobs)} jobs with Groq (Llama 3.1)...", flush=True)
     for job in jobs:
-        score, reason = score_job(client, job, jd)
+        score, reason = score_job(client, job, jd, feedback)
         job["score"] = score
         job["reason"] = reason
         status = "PASS" if score >= threshold else "SKIP"
