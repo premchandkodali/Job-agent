@@ -1,29 +1,27 @@
-"""
-main.py — runs the full pipeline:
-  1. Scrape jobs (LinkedIn, Indeed, Naukri)
-  2. AI filter (Claude scores each job vs your JD)
-  3. Send Telegram alerts
-"""
 import sys
+
+# force unbuffered output so GitHub Actions shows logs live
+sys.stdout.reconfigure(line_buffering=True)
+
 from scrapers.scraper import run as scrape
 from scrapers.ai_filter import run as filter_jobs
 from scrapers.notifier import run as notify
 
 def main():
-    print("=" * 50)
-    print("🚀 Job Agent starting...")
-    print("=" * 50)
+    print("=" * 50, flush=True)
+    print("🚀 Job Agent starting...", flush=True)
+    print("=" * 50, flush=True)
 
-    print("\n── Step 1: Scraping jobs ──")
+    print("\n── Step 1: Scraping jobs ──", flush=True)
     new_jobs = scrape()
 
-    print("\n── Step 2: AI filtering ──")
+    print("\n── Step 2: AI filtering ──", flush=True)
     filter_jobs()
 
-    print("\n── Step 3: Sending alerts ──")
+    print("\n── Step 3: Sending alerts ──", flush=True)
     notify()
 
-    print("\n✅ Pipeline complete!")
+    print("\n✅ Pipeline complete!", flush=True)
 
 if __name__ == "__main__":
     main()

@@ -35,6 +35,7 @@ jobs:
             seen-jobs-
 
       - name: Run job agent
+        timeout-minutes: 8
         env:
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
