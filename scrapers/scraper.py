@@ -1,9 +1,8 @@
 """
-Job scraper: LinkedIn, Indeed, Naukri
+Job scraper: LinkedIn, Indeed, TimesJobs, Freshersworld
 Reads config from config.json, saves new jobs to seen_jobs.json
 """
 import json
-import os
 import time
 import hashlib
 import feedparser
@@ -14,8 +13,6 @@ from bs4 import BeautifulSoup
 
 CONFIG_FILE = "config.json"
 SEEN_FILE = "seen_jobs.json"
-
-# ── helpers ──────────────────────────────────────────────────────────────────
 
 def load_config():
     with open(CONFIG_FILE) as f:
@@ -34,8 +31,6 @@ def save_seen(seen: set):
 def job_id(title: str, company: str) -> str:
     return hashlib.md5(f"{title.lower().strip()}{company.lower().strip()}".encode()).hexdigest()
 
-# ── Indeed scraper (RSS) ──────────────────────────────────────────────────────
-
 def scrape_indeed(keywords: list[str], location: str) -> list[dict]:
     jobs = []
     for kw in keywords:
@@ -43,46 +38,75 @@ def scrape_indeed(keywords: list[str], location: str) -> list[dict]:
             f"https://in.indeed.com/rss?q={requests.utils.quote(kw)}"
             f"&l={requests.utils.quote(location)}&sort=date"
         )
-        feed = feedparser.parse(url)
-        for entry in feed.entries[:15]:
-            jobs.append({
-                "title": entry.get("title", ""),
-                "company": entry.get("source", {}).get("value", "Unknown"),
-                "link": entry.get("link", ""),
-                "source": "Indeed",
-                "keyword": kw,
-                "date": entry.get("published", datetime.now().isoformat()),
-            })
-        time.sleep(1)
-    return jobs
-
-# ── Naukri scraper (RSS) ──────────────────────────────────────────────────────
-
-def scrape_naukri(keywords: list[str]) -> list[dict]:
-    jobs = []
-    for kw in keywords:
-        url = f"https://www.naukri.com/rss/jobs/it-jobs-in-india-0.xml"
         try:
             feed = feedparser.parse(url)
             for entry in feed.entries[:15]:
-                title = entry.get("title", "")
-                # filter by keyword relevance
-                if not any(k.lower() in title.lower() for k in keywords):
-                    continue
                 jobs.append({
-                    "title": title,
-                    "company": entry.get("author", "Unknown"),
+                    "title": entry.get("title", ""),
+                    "company": entry.get("source", {}).get("value", "Unknown"),
                     "link": entry.get("link", ""),
-                    "source": "Naukri",
+                    "source": "Indeed",
                     "keyword": kw,
                     "date": entry.get("published", datetime.now().isoformat()),
                 })
         except Exception as e:
-            print(f"Naukri error: {e}")
+            print(f"  Indeed skipped ({kw}): {e}", flush=True)
         time.sleep(1)
     return jobs
 
-# ── LinkedIn scraper (public search, no login needed) ─────────────────────────
+def scrape_naukri(keywords: list[str]) -> list[dict]:
+    """TimesJobs + Freshersworld (Naukri blocks CI servers)."""
+    jobs = []
+    headers = {
+        "User-Agent": (
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+            "AppleWebKit/537.36 (KHTML, like Gecko) "
+            "Chrome/122.0 Safari/537.36"
+        )
+    }
+    for kw in keywords:
+        # TimesJobs RSS
+        try:
+            resp = requests.get(
+                f"https://www.timesjobs.com/jobfeed/rss-jobs.html?keyword={requests.utils.quote(kw)}&locationId=0",
+                headers=headers, timeout=8
+            )
+            feed = feedparser.parse(resp.text)
+            for entry in feed.entries[:10]:
+                jobs.append({
+                    "title": entry.get("title", ""),
+                    "company": entry.get("author", "Unknown"),
+                    "link": entry.get("link", ""),
+                    "source": "TimesJobs",
+                    "keyword": kw,
+                    "date": entry.get("published", datetime.now().isoformat()),
+                })
+        except Exception as e:
+            print(f"  TimesJobs skipped ({kw}): {e}", flush=True)
+
+        # Freshersworld RSS
+        try:
+            resp = requests.get(
+                f"https://www.freshersworld.com/jobs/rss?keyword={requests.utils.quote(kw)}&location=India",
+                headers=headers, timeout=8
+            )
+            feed = feedparser.parse(resp.text)
+            for entry in feed.entries[:10]:
+                jobs.append({
+                    "title": entry.get("title", ""),
+                    "company": entry.get("author", "Unknown"),
+                    "link": entry.get("link", ""),
+                    "source": "Freshersworld",
+                    "keyword": kw,
+                    "date": entry.get("published", datetime.now().isoformat()),
+                })
+        except Exception as e:
+            print(f"  Freshersworld skipped ({kw}): {e}", flush=True)
+
+        time.sleep(1)
+
+    print(f"  Found {len(jobs)} jobs from TimesJobs/Freshersworld", flush=True)
+    return jobs
 
 def scrape_linkedin(keywords: list[str], location: str) -> list[dict]:
     jobs = []
@@ -98,7 +122,7 @@ def scrape_linkedin(keywords: list[str], location: str) -> list[dict]:
             f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
             f"?keywords={requests.utils.quote(kw)}"
             f"&location={requests.utils.quote(location)}"
-            f"&f_TPR=r86400"   # last 24 hours
+            f"&f_TPR=r86400"
             f"&start=0"
         )
         try:
@@ -120,11 +144,9 @@ def scrape_linkedin(keywords: list[str], location: str) -> list[dict]:
                     "date": datetime.now().isoformat(),
                 })
         except Exception as e:
-            print(f"LinkedIn error for '{kw}': {e}")
+            print(f"  LinkedIn skipped ({kw}): {e}", flush=True)
         time.sleep(2)
     return jobs
-
-# ── main ─────────────────────────────────────────────────────────────────────
 
 def run():
     config = load_config()
@@ -133,12 +155,17 @@ def run():
     location = config.get("location", "India")
 
     all_jobs = []
-    print(f"🔍 Scraping Indeed...")
+    print("🔍 Scraping Indeed...", flush=True)
     all_jobs += scrape_indeed(keywords, location)
-    print(f"🔍 Scraping Naukri...")
+    print(f"  Found {len(all_jobs)} jobs so far", flush=True)
+
+    print("🔍 Scraping TimesJobs + Freshersworld...", flush=True)
     all_jobs += scrape_naukri(keywords)
-    print(f"🔍 Scraping LinkedIn...")
+    print(f"  Found {len(all_jobs)} jobs so far", flush=True)
+
+    print("🔍 Scraping LinkedIn...", flush=True)
     all_jobs += scrape_linkedin(keywords, location)
+    print(f"  Found {len(all_jobs)} jobs total", flush=True)
 
     new_jobs = []
     for job in all_jobs:
@@ -148,9 +175,8 @@ def run():
             new_jobs.append(job)
 
     save_seen(seen)
-    print(f"✅ Found {len(new_jobs)} new jobs out of {len(all_jobs)} total")
+    print(f"✅ {len(new_jobs)} new jobs out of {len(all_jobs)} total", flush=True)
 
-    # write new jobs for next step to read
     with open("new_jobs.json", "w") as f:
         json.dump(new_jobs, f, indent=2)
 
