@@ -1,6 +1,6 @@
 """
 Job scraper: LinkedIn, Indeed, TimesJobs, Freshersworld
-Reads config from config.json, saves new jobs to seen_jobs.json
+All HTTP calls have explicit timeouts — no hanging.
 """
 import json
 import time
@@ -13,6 +13,14 @@ from bs4 import BeautifulSoup
 
 CONFIG_FILE = "config.json"
 SEEN_FILE = "seen_jobs.json"
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/122.0 Safari/537.36"
+    )
+}
 
 def load_config():
     with open(CONFIG_FILE) as f:
@@ -31,6 +39,17 @@ def save_seen(seen: set):
 def job_id(title: str, company: str) -> str:
     return hashlib.md5(f"{title.lower().strip()}{company.lower().strip()}".encode()).hexdigest()
 
+def fetch_rss(url: str, timeout: int = 10) -> list:
+    """Fetch RSS with timeout — returns feedparser entries or empty list."""
+    try:
+        resp = requests.get(url, headers=HEADERS, timeout=timeout)
+        resp.raise_for_status()
+        feed = feedparser.parse(resp.text)
+        return feed.entries
+    except Exception as e:
+        print(f"  RSS fetch failed ({url[:60]}...): {e}", flush=True)
+        return []
+
 def scrape_indeed(keywords: list[str], location: str) -> list[dict]:
     jobs = []
     for kw in keywords:
@@ -38,98 +57,66 @@ def scrape_indeed(keywords: list[str], location: str) -> list[dict]:
             f"https://in.indeed.com/rss?q={requests.utils.quote(kw)}"
             f"&l={requests.utils.quote(location)}&sort=date"
         )
-        try:
-            feed = feedparser.parse(url)
-            for entry in feed.entries[:15]:
-                jobs.append({
-                    "title": entry.get("title", ""),
-                    "company": entry.get("source", {}).get("value", "Unknown"),
-                    "link": entry.get("link", ""),
-                    "source": "Indeed",
-                    "keyword": kw,
-                    "date": entry.get("published", datetime.now().isoformat()),
-                })
-        except Exception as e:
-            print(f"  Indeed skipped ({kw}): {e}", flush=True)
+        for entry in fetch_rss(url)[:15]:
+            jobs.append({
+                "title": entry.get("title", ""),
+                "company": entry.get("source", {}).get("value", "Unknown"),
+                "link": entry.get("link", ""),
+                "source": "Indeed",
+                "keyword": kw,
+                "date": entry.get("published", datetime.now().isoformat()),
+            })
         time.sleep(1)
+    print(f"  Indeed: {len(jobs)} jobs", flush=True)
     return jobs
 
-def scrape_naukri(keywords: list[str]) -> list[dict]:
-    """TimesJobs + Freshersworld (Naukri blocks CI servers)."""
+def scrape_timesjobs(keywords: list[str]) -> list[dict]:
     jobs = []
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0 Safari/537.36"
-        )
-    }
     for kw in keywords:
-        # TimesJobs RSS
-        try:
-            resp = requests.get(
-                f"https://www.timesjobs.com/jobfeed/rss-jobs.html?keyword={requests.utils.quote(kw)}&locationId=0",
-                headers=headers, timeout=8
-            )
-            feed = feedparser.parse(resp.text)
-            for entry in feed.entries[:10]:
-                jobs.append({
-                    "title": entry.get("title", ""),
-                    "company": entry.get("author", "Unknown"),
-                    "link": entry.get("link", ""),
-                    "source": "TimesJobs",
-                    "keyword": kw,
-                    "date": entry.get("published", datetime.now().isoformat()),
-                })
-        except Exception as e:
-            print(f"  TimesJobs skipped ({kw}): {e}", flush=True)
-
-        # Freshersworld RSS
-        try:
-            resp = requests.get(
-                f"https://www.freshersworld.com/jobs/rss?keyword={requests.utils.quote(kw)}&location=India",
-                headers=headers, timeout=8
-            )
-            feed = feedparser.parse(resp.text)
-            for entry in feed.entries[:10]:
-                jobs.append({
-                    "title": entry.get("title", ""),
-                    "company": entry.get("author", "Unknown"),
-                    "link": entry.get("link", ""),
-                    "source": "Freshersworld",
-                    "keyword": kw,
-                    "date": entry.get("published", datetime.now().isoformat()),
-                })
-        except Exception as e:
-            print(f"  Freshersworld skipped ({kw}): {e}", flush=True)
-
+        url = f"https://www.timesjobs.com/jobfeed/rss-jobs.html?keyword={requests.utils.quote(kw)}&locationId=0"
+        for entry in fetch_rss(url)[:10]:
+            jobs.append({
+                "title": entry.get("title", ""),
+                "company": entry.get("author", "Unknown"),
+                "link": entry.get("link", ""),
+                "source": "TimesJobs",
+                "keyword": kw,
+                "date": entry.get("published", datetime.now().isoformat()),
+            })
         time.sleep(1)
+    print(f"  TimesJobs: {len(jobs)} jobs", flush=True)
+    return jobs
 
-    print(f"  Found {len(jobs)} jobs from TimesJobs/Freshersworld", flush=True)
+def scrape_freshersworld(keywords: list[str]) -> list[dict]:
+    jobs = []
+    for kw in keywords:
+        url = f"https://www.freshersworld.com/jobs/rss?keyword={requests.utils.quote(kw)}&location=India"
+        for entry in fetch_rss(url)[:10]:
+            jobs.append({
+                "title": entry.get("title", ""),
+                "company": entry.get("author", "Unknown"),
+                "link": entry.get("link", ""),
+                "source": "Freshersworld",
+                "keyword": kw,
+                "date": entry.get("published", datetime.now().isoformat()),
+            })
+        time.sleep(1)
+    print(f"  Freshersworld: {len(jobs)} jobs", flush=True)
     return jobs
 
 def scrape_linkedin(keywords: list[str], location: str) -> list[dict]:
     jobs = []
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/122.0 Safari/537.36"
-        )
-    }
     for kw in keywords:
         url = (
             f"https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search"
             f"?keywords={requests.utils.quote(kw)}"
             f"&location={requests.utils.quote(location)}"
-            f"&f_TPR=r86400"
-            f"&start=0"
+            f"&f_TPR=r86400&start=0"
         )
         try:
-            resp = requests.get(url, headers=headers, timeout=15)
+            resp = requests.get(url, headers=HEADERS, timeout=15)
             soup = BeautifulSoup(resp.text, "html.parser")
-            cards = soup.find_all("li")
-            for card in cards[:10]:
+            for card in soup.find_all("li")[:10]:
                 title_el = card.find("h3")
                 company_el = card.find("h4")
                 link_el = card.find("a")
@@ -138,7 +125,7 @@ def scrape_linkedin(keywords: list[str], location: str) -> list[dict]:
                 jobs.append({
                     "title": title_el.get_text(strip=True),
                     "company": company_el.get_text(strip=True) if company_el else "Unknown",
-                    "link": link_el["href"].split("?")[0] if link_el else "",
+                    "link": link_el["href"].split("?")[0] if link_el and link_el.get("href") else "",
                     "source": "LinkedIn",
                     "keyword": kw,
                     "date": datetime.now().isoformat(),
@@ -146,6 +133,7 @@ def scrape_linkedin(keywords: list[str], location: str) -> list[dict]:
         except Exception as e:
             print(f"  LinkedIn skipped ({kw}): {e}", flush=True)
         time.sleep(2)
+    print(f"  LinkedIn: {len(jobs)} jobs", flush=True)
     return jobs
 
 def run():
@@ -155,17 +143,18 @@ def run():
     location = config.get("location", "India")
 
     all_jobs = []
+
     print("🔍 Scraping Indeed...", flush=True)
     all_jobs += scrape_indeed(keywords, location)
-    print(f"  Found {len(all_jobs)} jobs so far", flush=True)
 
-    print("🔍 Scraping TimesJobs + Freshersworld...", flush=True)
-    all_jobs += scrape_naukri(keywords)
-    print(f"  Found {len(all_jobs)} jobs so far", flush=True)
+    print("🔍 Scraping TimesJobs...", flush=True)
+    all_jobs += scrape_timesjobs(keywords)
+
+    print("🔍 Scraping Freshersworld...", flush=True)
+    all_jobs += scrape_freshersworld(keywords)
 
     print("🔍 Scraping LinkedIn...", flush=True)
     all_jobs += scrape_linkedin(keywords, location)
-    print(f"  Found {len(all_jobs)} jobs total", flush=True)
 
     new_jobs = []
     for job in all_jobs:
