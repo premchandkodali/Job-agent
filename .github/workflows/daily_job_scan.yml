@@ -1,0 +1,61 @@
+name: Daily Job Agent
+
+on:
+  schedule:
+    # 8:00 AM IST = 2:30 AM UTC
+    - cron: "30 2 * * *"
+  workflow_dispatch:  # lets you run manually from GitHub UI
+
+jobs:
+  scan-jobs:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write   # needed to commit seen_jobs.json back
+
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      # Restore seen jobs cache so we don't re-alert old jobs
+      - name: Restore seen jobs cache
+        uses: actions/cache@v4
+        with:
+          path: seen_jobs.json
+          key: seen-jobs-${{ github.run_id }}
+          restore-keys: |
+            seen-jobs-
+
+      - name: Run job agent
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+          TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+        run: python main.py
+
+      # Save updated seen_jobs.json so next run knows what was already alerted
+      - name: Commit seen jobs back to repo
+        run: |
+          git config user.name "job-agent[bot]"
+          git config user.email "job-agent@users.noreply.github.com"
+          git add seen_jobs.json || true
+          git diff --staged --quiet || git commit -m "chore: update seen jobs [skip ci]"
+          git push || true
+
+      - name: Upload run artifacts
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: job-results-${{ github.run_number }}
+          path: |
+            new_jobs.json
+            filtered_jobs.json
+          retention-days: 7

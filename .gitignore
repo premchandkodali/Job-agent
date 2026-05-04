@@ -1,0 +1,12 @@
+# never commit secrets
+.env
+*.env
+
+# runtime output files (committed only by Actions bot)
+new_jobs.json
+filtered_jobs.json
+
+# python
+__pycache__/
+*.pyc
+.venv/

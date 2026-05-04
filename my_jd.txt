@@ -1,0 +1,22 @@
+I am a fresher software engineer looking for entry-level or junior roles.
+
+Skills:
+- Python (intermediate): Django, Flask, REST APIs
+- JavaScript / React (basic)
+- SQL, PostgreSQL
+- Git, GitHub
+- Basic understanding of cloud (AWS S3, EC2)
+- Data structures and algorithms
+
+Education:
+- B.Tech in Computer Science, 2024
+
+I am open to:
+- Backend / full-stack roles
+- Startup or product companies
+- Remote or Hyderabad / Bangalore / Chennai locations
+
+I am NOT interested in:
+- Sales or non-tech roles
+- Core hardware / embedded systems
+- Very senior roles (5+ years required)
